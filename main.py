@@ -1,3 +1,18 @@
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+import os
+import httpx
+
+app = FastAPI()
+
+class QuestRequest(BaseModel):
+    history: list = []
+    speaker: str = "НПС"
+
+@app.get("/")
+def read_root():
+    return {"status": "ok", "message": "Server is running"}
+
 @app.post("/generate_quest")
 async def generate_quest(request: QuestRequest):
     gemini_key = os.getenv("GEMINI_API_KEY") or os.getenv("API_KEY")
