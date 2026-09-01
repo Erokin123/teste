@@ -1,27 +1,11 @@
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-import os
-import httpx
-
-app = FastAPI()
-
-class QuestRequest(BaseModel):
-    history: list = []
-    speaker: str = "НПС"
-
-@app.get("/")
-def read_root():
-    return {"status": "ok", "message": "Server is running"}
-
 @app.post("/generate_quest")
 async def generate_quest(request: QuestRequest):
-    # Проверяем ключ при каждом запросе
     gemini_key = os.getenv("GEMINI_API_KEY") or os.getenv("API_KEY")
     
     if not gemini_key:
         raise HTTPException(status_code=500, detail="API Key is missing on server")
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={gemini_key}"
+    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + str(gemini_key)
     
     prompt_text = (
         f"Ты NPC в 2D RPG. Твоё имя: {request.speaker}. "
@@ -52,7 +36,6 @@ async def generate_quest(request: QuestRequest):
         data = response.json()
         try:
             generated_text = data["candidates"][0]["content"]["parts"][0]["text"]
-            # Очищаем ответ от случайной маркдаун-разметки
             clean_text = generated_text.replace("```json", "").replace("```", "").strip()
             return {"status": "success", "quest_json": clean_text}
         except (KeyError, IndexError, TypeError):
