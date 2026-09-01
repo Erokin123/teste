@@ -13,7 +13,9 @@ class QuestRequest(BaseModel):
 def read_root():
     return {"status": "ok", "message": "Server is running"}
 
+# Поддерживаем оба формата пути
 @app.post("/generate_quest")
+@app.post("/generate-quest")
 async def generate_quest(request: QuestRequest):
     gemini_key = os.getenv("GEMINI_API_KEY") or os.getenv("API_KEY")
     
