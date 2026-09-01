@@ -50,5 +50,5 @@ async def generate_quest(request: QuestRequest):
         try:
             generated_text = data["candidates"][0]["content"]["parts"][0]["text"]
             return {"status": "success", "quest_json": generated_text}
-        except (KeyError, IndexingError):
+        except (KeyError, IndexError, TypeError):
             raise HTTPException(status_code=500, detail="Failed to parse Gemini response")
