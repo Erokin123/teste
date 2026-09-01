@@ -1,56 +1,54 @@
-import os
 from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+import os
 import httpx
 
 app = FastAPI()
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Считываем ключ из GEMINI_API_KEY или API_KEY
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("API_KEY")
 
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+class QuestRequest(BaseModel):
+    history: list = []
+    speaker: str = "НПС"
 
 @app.get("/")
-def home():
-    return {"status": "Server is running 24/7"}
+def read_root():
+    return {"status": "ok", "message": "Server is running"}
 
 @app.post("/generate_quest")
-async def generate_quest():
+async def generate_quest(request: QuestRequest):
     if not GEMINI_API_KEY:
         raise HTTPException(status_code=500, detail="API Key is missing on server")
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key={GEMINI_API_KEY}"
+    # Формируем запрос к Gemini API
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
     
-    quest_prompt = """
-    Ты NPC в 2D игре. Придумай случайный квест для игрока.
-    Верни ответ СТРОГО в формате JSON со следующими полями:
-    {
-        "quest_title": "Название квеста",
-        "dialogue": "Короткая фраза NPC при выдаче квеста (1 предложение)",
-        "target_id": "название цели (например: goblin, slime, herb)",
-        "amount": 5,
-        "reward_gold": 50
-    }
-    """
+    prompt_text = (
+        "Ты генерируешь короткие диалоги для 2D RPG. "
+        "Ответь строго в формате JSON без разметки markdown:\n"
+        '{"quest_title": "Название квеста", "dialogue": "Короткая реплика персонажа"}'
+    )
 
     payload = {
-        "contents": [{"role": "user", "parts": [{"text": quest_prompt}]}],
-        "generationConfig": {"response_mime_type": "application/json"}
+        "contents": [
+            {
+                "parts": [
+                    {"text": prompt_text}
+                ]
+            }
+        ]
     }
 
     async with httpx.AsyncClient() as client:
-        try:
-            response = await client.post(url, json=payload, timeout=15.0)
-            if response.status_code != 200:
-                raise HTTPException(status_code=response.status_code, detail=response.text)
+        response = await client.post(url, json=payload, timeout=10.0)
+        
+        if response.status_code != 200:
+            raise HTTPException(status_code=response.status_code, detail=response.text)
             
-            data = response.json()
-            raw_text = data["candidates"][0]["content"]["parts"][0]["text"]
-            return {"status": "success", "quest_json": raw_text}
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
+        data = response.json()
+        try:
+            generated_text = data["candidates"][0]["content"]["parts"][0]["text"]
+            return {"status": "success", "quest_json": generated_text}
+        except (KeyError, IndexingError):
+            raise HTTPException(status_code=500, detail="Failed to parse Gemini response")
