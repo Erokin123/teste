@@ -21,7 +21,7 @@ async def generate_quest(request: QuestRequest):
     if not gemini_key:
         raise HTTPException(status_code=500, detail="API Key is missing on server")
 
-    url = f"[https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=](https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=){gemini_key}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={gemini_key}"
     
     prompt_text = (
         f"Ты NPC в 2D RPG. Твоё имя: {request.speaker}. "
