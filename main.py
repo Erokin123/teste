@@ -5,9 +5,6 @@ import httpx
 
 app = FastAPI()
 
-# Считываем ключ из GEMINI_API_KEY или API_KEY
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("API_KEY")
-
 class QuestRequest(BaseModel):
     history: list = []
     speaker: str = "НПС"
@@ -18,15 +15,18 @@ def read_root():
 
 @app.post("/generate_quest")
 async def generate_quest(request: QuestRequest):
-    if not GEMINI_API_KEY:
+    # Проверяем ключ при каждом запросе
+    gemini_key = os.getenv("GEMINI_API_KEY") or os.getenv("API_KEY")
+    
+    if not gemini_key:
         raise HTTPException(status_code=500, detail="API Key is missing on server")
 
-    # Формируем запрос к Gemini API
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+    url = f"[https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=](https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=){gemini_key}"
     
     prompt_text = (
-        "Ты генерируешь короткие диалоги для 2D RPG. "
-        "Ответь строго в формате JSON без разметки markdown:\n"
+        f"Ты NPC в 2D RPG. Твоё имя: {request.speaker}. "
+        "Сгенерируй короткую реплику или квест. "
+        "Ответь строго в формате JSON без какого-либо Markdown (без ```json):\n"
         '{"quest_title": "Название квеста", "dialogue": "Короткая реплика персонажа"}'
     )
 
@@ -41,7 +41,10 @@ async def generate_quest(request: QuestRequest):
     }
 
     async with httpx.AsyncClient() as client:
-        response = await client.post(url, json=payload, timeout=10.0)
+        try:
+            response = await client.post(url, json=payload, timeout=15.0)
+        except httpx.RequestError as exc:
+            raise HTTPException(status_code=500, detail=f"Request to Gemini failed: {str(exc)}")
         
         if response.status_code != 200:
             raise HTTPException(status_code=response.status_code, detail=response.text)
@@ -49,6 +52,8 @@ async def generate_quest(request: QuestRequest):
         data = response.json()
         try:
             generated_text = data["candidates"][0]["content"]["parts"][0]["text"]
-            return {"status": "success", "quest_json": generated_text}
+            # Очищаем ответ от случайной маркдаун-разметки
+            clean_text = generated_text.replace("```json", "").replace("```", "").strip()
+            return {"status": "success", "quest_json": clean_text}
         except (KeyError, IndexError, TypeError):
             raise HTTPException(status_code=500, detail="Failed to parse Gemini response")
