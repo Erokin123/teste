@@ -22,13 +22,13 @@ async def generate_quest(request: QuestRequest):
     if not gemini_key:
         raise HTTPException(status_code=500, detail="API Key is missing on server")
 
-    # Использование актуальной модели gemini-2.5-flash
-    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + str(gemini_key)
+    # Использование актуальной рабочей модели (gemini-1.5-flash или gemini-2.5-flash)
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={gemini_key}"
     
     prompt_text = (
         f"Ты NPC в 2D RPG. Твоё имя: {request.speaker}. "
         "Сгенерируй короткую реплику или квест. "
-        "Ответь строго в формате JSON без какого-либо Markdown (без ```json):\n"
+        "Ответь строго в формате JSON со следующими ключами: "
         '{"quest_title": "Название квеста", "dialogue": "Короткая реплика персонажа"}'
     )
 
@@ -39,7 +39,10 @@ async def generate_quest(request: QuestRequest):
                     {"text": prompt_text}
                 ]
             }
-        ]
+        ],
+        "generationConfig": {
+            "responseMimeType": "application/json"
+        }
     }
 
     async with httpx.AsyncClient() as client:
@@ -54,7 +57,7 @@ async def generate_quest(request: QuestRequest):
         data = response.json()
         try:
             generated_text = data["candidates"][0]["content"]["parts"][0]["text"]
-            clean_text = generated_text.replace("```json", "").replace("```", "").strip()
+            clean_text = generated_text.strip()
             return {"status": "success", "quest_json": clean_text}
         except (KeyError, IndexError, TypeError):
             raise HTTPException(status_code=500, detail="Failed to parse Gemini response")
